@@ -95,13 +95,13 @@ export const store = {
 
   getSettings() {
     return {
-      defaultQuality: "Best Available",
-      defaultFormat: "mp4",
-      filenameTemplate: "{index}_{title}_{quality}",
-      autoSaveCompleted: true,
-      maxConcurrentDownloads: 2,
-      autoBrowserSave: true,
       ...settings,
+      defaultQuality: settings.defaultQuality || "Best Available",
+      defaultFormat: settings.defaultFormat || "mp4",
+      filenameTemplate: settings.filenameTemplate || "{index}_{title}_{quality}",
+      autoSaveCompleted: settings.autoSaveCompleted !== false,
+      maxConcurrentDownloads: settings.maxConcurrentDownloads ?? 2,
+      autoBrowserSave: settings.autoBrowserSave !== false,
     };
   },
   setSettings(next: Partial<AppSettings>) {

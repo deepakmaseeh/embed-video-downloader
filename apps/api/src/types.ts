@@ -82,6 +82,29 @@ export interface DownloadJob {
   clientId?: string;
 }
 
+export interface AnalyzeResult {
+  id: string;
+  pageUrl: string;
+  status: "queued" | "running" | "completed" | "failed";
+  stage?: string;
+  error?: string;
+  media: MediaItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HistoryEntry {
+  id: string;
+  title: string;
+  sourcePage: string;
+  filename: string;
+  quality: string;
+  format: string;
+  status: string;
+  filesize?: number;
+  createdAt: string;
+}
+
 export interface AppSettings {
   defaultQuality: string;
   defaultFormat: string;
