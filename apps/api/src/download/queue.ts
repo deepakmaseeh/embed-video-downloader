@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 import { getVimeoHlsUrl, downloadBiblicalTrainingTranscript } from "../analyzer/biblicalTraining";
 import { spawnYtDlp } from "../analyzer/ytDlpCmd";
 import { store } from "../store/memory";
-import type { DownloadJob, HistoryEntry } from "../types";
+import type { DownloadJob } from "../types";
 
 const listeners = new Set<(job: DownloadJob) => void>();
 const activeIds = new Set<string>();
@@ -105,6 +105,7 @@ export function enqueueDownload(input: {
   transcriptOnly?: boolean;
   courseTitle?: string;
   instructor?: string;
+  clientId?: string;
 }): DownloadJob {
   const settings = store.getSettings();
   const id = nanoid(12);
@@ -126,6 +127,7 @@ export function enqueueDownload(input: {
     lessonId: input.lessonId,
     includeTranscript: Boolean(input.includeTranscript || input.transcriptOnly),
     transcriptOnly: Boolean(input.transcriptOnly),
+    clientId: input.clientId || undefined,
   };
   (job as DownloadJob & { courseTitle?: string; instructor?: string }).courseTitle = input.courseTitle;
   (job as DownloadJob & { courseTitle?: string; instructor?: string }).instructor = input.instructor;
@@ -258,16 +260,6 @@ async function runJob(jobId: string) {
         filepath: savedPath,
         autoSaved: true,
         updatedAt: new Date().toISOString(),
-      });
-      store.pushHistory({
-        id: nanoid(10),
-        title: cur.title,
-        sourcePage: cur.sourcePage,
-        filename: path.basename(savedPath),
-        quality: "transcript",
-        format: "txt",
-        status: "completed",
-        createdAt: new Date().toISOString(),
       });
     } else {
       emit({
@@ -427,33 +419,6 @@ async function runJob(jobId: string) {
         updatedAt: new Date().toISOString(),
       };
       emit(done);
-
-      if (filename) {
-        const hist: HistoryEntry = {
-          id: nanoid(10),
-          title: done.title,
-          sourcePage: done.sourcePage,
-          filename,
-          quality: done.quality,
-          format: done.format,
-          status: "completed",
-          filesize,
-          createdAt: new Date().toISOString(),
-        };
-        store.pushHistory(hist);
-      }
-      if (done.transcriptFilename) {
-        store.pushHistory({
-          id: nanoid(10),
-          title: `${done.title} (transcript)`,
-          sourcePage: done.sourcePage,
-          filename: done.transcriptFilename,
-          quality: "transcript",
-          format: "txt",
-          status: "completed",
-          createdAt: new Date().toISOString(),
-        });
-      }
       resolve();
     });
   });

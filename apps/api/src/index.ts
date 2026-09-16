@@ -30,6 +30,24 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 
+function clientIdOf(req: { header: (n: string) => string | undefined; body?: unknown; query?: unknown }): string {
+  const fromHeader = String(req.header("x-client-id") || "").trim();
+  if (fromHeader) return fromHeader;
+  const body = (req.body || {}) as { clientId?: string };
+  if (body.clientId) return String(body.clientId).trim();
+  const query = (req.query || {}) as { clientId?: string };
+  return String(query.clientId || "").trim();
+}
+
+function requireClient(req: { header: (n: string) => string | undefined; body?: unknown; query?: unknown }, res: express.Response): string | null {
+  const id = clientIdOf(req);
+  if (!id) {
+    res.status(400).json({ error: "X-Client-Id required (per-browser session)" });
+    return null;
+  }
+  return id;
+}
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "downloader-api" });
 });
@@ -56,6 +74,9 @@ app.get("/api/analyze/:id", (req, res) => {
 });
 
 app.post("/api/download", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+
   const schema = z.object({
     mediaId: z.string(),
     title: z.string(),
@@ -75,7 +96,7 @@ app.post("/api/download", (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid download request" });
 
   if (!parsed.data.transcriptOnly) {
-    const existing = store.listDownloads().find(
+    const existing = store.listDownloadsForClient(clientId).find(
       (d) =>
         d.status === "completed" &&
         d.title === parsed.data.title &&
@@ -91,11 +112,14 @@ app.post("/api/download", (req, res) => {
     }
   }
 
-  const job = enqueueDownload(parsed.data);
+  const job = enqueueDownload({ ...parsed.data, clientId });
   res.status(202).json(job);
 });
 
 app.post("/api/download/force", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+
   const schema = z.object({
     mediaId: z.string(),
     title: z.string(),
@@ -113,11 +137,14 @@ app.post("/api/download/force", (req, res) => {
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid download request" });
-  const job = enqueueDownload(parsed.data);
+  const job = enqueueDownload({ ...parsed.data, clientId });
   res.status(202).json(job);
 });
 
 app.post("/api/transcript", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+
   const schema = z.object({
     mediaId: z.string().default("transcript"),
     title: z.string(),
@@ -140,6 +167,7 @@ app.post("/api/transcript", (req, res) => {
     transcriptOnly: true,
     courseTitle: parsed.data.courseTitle,
     instructor: parsed.data.instructor,
+    clientId,
   });
   res.status(202).json(job);
 });
@@ -162,6 +190,9 @@ const downloadItemSchema = z.object({
 
 /** Queue many videos and/or transcripts at once (concurrent pump keeps running). */
 app.post("/api/download/batch", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+
   const schema = z.object({
     items: z.array(downloadItemSchema).min(1).max(200),
     /** If true, every video job also pulls transcript when lessonId is present */
@@ -189,6 +220,7 @@ app.post("/api/download/batch", (req, res) => {
           transcriptOnly: true,
           courseTitle: item.courseTitle,
           instructor: item.instructor,
+          clientId,
         })
       );
       continue;
@@ -213,6 +245,7 @@ app.post("/api/download/batch", (req, res) => {
         transcriptOnly: false,
         courseTitle: item.courseTitle,
         instructor: item.instructor,
+        clientId,
       })
     );
   }
@@ -220,34 +253,51 @@ app.post("/api/download/batch", (req, res) => {
   res.status(202).json({ queued: jobs.length, jobs });
 });
 
-app.get("/api/downloads", (_req, res) => {
-  res.json({ downloads: store.listDownloads() });
+app.get("/api/downloads", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+  res.json({ downloads: store.listDownloadsForClient(clientId) });
 });
 
 app.get("/api/downloads/:id", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
   const job = store.getDownload(req.params.id);
-  if (!job) return res.status(404).json({ error: "Not found" });
+  if (!job || job.clientId !== clientId) return res.status(404).json({ error: "Not found" });
   res.json(job);
 });
 
 app.post("/api/downloads/:id/cancel", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+  const existing = store.getDownload(req.params.id);
+  if (!existing || existing.clientId !== clientId) return res.status(404).json({ error: "Not found" });
   const job = cancelDownload(req.params.id);
   if (!job) return res.status(404).json({ error: "Not found" });
   res.json(job);
 });
 
 app.post("/api/downloads/:id/retry", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+  const existing = store.getDownload(req.params.id);
+  if (!existing || existing.clientId !== clientId) return res.status(404).json({ error: "Not found" });
   const job = retryDownload(req.params.id);
   if (!job) return res.status(404).json({ error: "Not found" });
   res.json(job);
 });
 
 app.delete("/api/downloads/:id", (req, res) => {
+  const clientId = requireClient(req, res);
+  if (!clientId) return;
+  const existing = store.getDownload(req.params.id);
+  if (!existing || existing.clientId !== clientId) return res.status(404).json({ error: "Not found" });
   store.deleteDownload(req.params.id);
   res.json({ ok: true });
 });
 
 app.get("/api/downloads/events/stream", (req, res) => {
+  const clientId = String(req.query.clientId || "").trim();
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -255,13 +305,21 @@ app.get("/api/downloads/events/stream", (req, res) => {
   res.write(`data: ${JSON.stringify({ type: "hello" })}\n\n`);
 
   const off = onDownloadUpdate((job) => {
+    if (clientId && job.clientId && job.clientId !== clientId) return;
+    if (clientId && !job.clientId) return;
     res.write(`data: ${JSON.stringify({ type: "download", job })}\n\n`);
   });
   req.on("close", () => off());
 });
 
 app.get("/api/files/:name", (req, res) => {
+  const clientId = String(req.query.clientId || req.header("x-client-id") || "").trim();
+  if (!clientId) return res.status(400).json({ error: "clientId required" });
+
   const safe = path.basename(req.params.name);
+  const owner = store.findDownloadByFilename(safe, clientId);
+  if (!owner) return res.status(404).json({ error: "File not found" });
+
   const primary = path.join(store.downloadDir, safe);
   const completed = path.join(store.downloadDir, "completed", safe);
   const full = fs.existsSync(primary)
@@ -270,20 +328,32 @@ app.get("/api/files/:name", (req, res) => {
       ? completed
       : "";
   if (!full) return res.status(404).json({ error: "File not found" });
-  res.download(full, safe);
+
+  const purge = String(req.query.purge || "") === "1";
+  res.download(full, safe, (err) => {
+    if (err) return;
+    if (!purge) return;
+    // Remove temp server copy after the browser has received it
+    for (const p of [primary, completed]) {
+      try {
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      } catch {
+        /* ignore */
+      }
+    }
+  });
 });
 
 app.get("/api/history", (_req, res) => {
-  res.json({ history: store.getHistory() });
+  res.json({ history: [], note: "History is stored in each browser's localStorage" });
 });
 
-app.delete("/api/history/:id", (req, res) => {
-  store.deleteHistory(req.params.id);
-  res.json({ ok: true });
+app.delete("/api/history/:id", (_req, res) => {
+  res.json({ ok: true, note: "History is browser-local; nothing to delete on server" });
 });
 
 app.get("/api/recent", (_req, res) => {
-  res.json({ recent: store.getRecent() });
+  res.json({ recent: [], note: "Recent URLs are stored in each browser's localStorage" });
 });
 
 app.get("/api/settings", (_req, res) => {

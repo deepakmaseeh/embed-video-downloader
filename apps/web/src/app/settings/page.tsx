@@ -93,7 +93,7 @@ export default function SettingsPage() {
           <span>
             <span className="block text-sm font-semibold">Browser save when complete</span>
             <span className="block text-xs text-stone-500">
-              Trigger a Save As dialog as each job finishes (queue keeps running)
+              Preference also lives in this browser; finished files download locally, not a shared gallery
             </span>
           </span>
         </label>
@@ -133,16 +133,15 @@ export default function SettingsPage() {
 
       {storage && (
         <section className="panel p-5">
-          <h3 className="font-semibold">Storage</h3>
+          <h3 className="font-semibold">Server temp storage</h3>
           <p className="mt-2 text-sm text-stone-600">
-            {storage.fileCount} files · {(storage.usedBytes / (1024 * 1024)).toFixed(1)} MB used
+            {storage.fileCount} temp files · {(storage.usedBytes / (1024 * 1024)).toFixed(1)} MB
+            (processed on the server, then sent to each visitor&apos;s browser)
           </p>
-          <p className="mt-1 break-all text-xs text-stone-500">{storage.downloadDir}</p>
-          {storage.completedDir ? (
-            <p className="mt-1 break-all text-xs text-stone-500">
-              Completed: {storage.completedDir}
-            </p>
-          ) : null}
+          <p className="mt-2 text-xs text-stone-500">
+            Recent URLs and download history are <strong>not</strong> shared — they stay in each
+            browser&apos;s localStorage.
+          </p>
         </section>
       )}
     </main>

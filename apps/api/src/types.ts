@@ -78,6 +78,8 @@ export interface DownloadJob {
   transcriptFilename?: string;
   transcriptOnly?: boolean;
   autoSaved?: boolean;
+  /** Browser session that owns this job (not shared across visitors) */
+  clientId?: string;
 }
 
 export interface AppSettings {

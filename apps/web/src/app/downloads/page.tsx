@@ -1,25 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import type { DownloadJob } from "../../lib/types";
-
-function triggerBrowserSave(filename: string) {
-  const a = document.createElement("a");
-  a.href = api.fileUrl(filename);
-  a.download = filename;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
+import { getAutoBrowserSave, setAutoBrowserSave as persistAutoBrowserSave } from "../../lib/localStore";
 
 export default function DownloadsPage() {
   const [downloads, setDownloads] = useState<DownloadJob[]>([]);
   const [autoBrowserSave, setAutoBrowserSave] = useState(true);
   const [toast, setToast] = useState("");
-  const savedIds = useRef<Set<string>>(new Set());
-  const autoBrowserSaveRef = useRef(true);
 
   async function refresh() {
     const data = await api.listDownloads();
@@ -27,22 +16,9 @@ export default function DownloadsPage() {
   }
 
   useEffect(() => {
-    autoBrowserSaveRef.current = autoBrowserSave;
-  }, [autoBrowserSave]);
-
-  useEffect(() => {
-    api
-      .settings()
-      .then((s) => {
-        if (typeof s.autoBrowserSave === "boolean") {
-          setAutoBrowserSave(s.autoBrowserSave);
-          autoBrowserSaveRef.current = s.autoBrowserSave;
-        }
-      })
-      .catch(() => undefined);
-
+    setAutoBrowserSave(getAutoBrowserSave());
     refresh().catch(() => undefined);
-    const es = new EventSource(`${api.base}/api/downloads/events/stream`);
+    const es = new EventSource(api.eventsUrl());
     es.onmessage = (ev) => {
       try {
         const payload = JSON.parse(ev.data);
@@ -52,19 +28,8 @@ export default function DownloadsPage() {
             const others = prev.filter((d) => d.id !== job.id);
             return [job, ...others].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
           });
-
-          if (
-            job.status === "completed" &&
-            job.filename &&
-            autoBrowserSaveRef.current &&
-            !savedIds.current.has(job.id)
-          ) {
-            savedIds.current.add(job.id);
-            triggerBrowserSave(job.filename);
-            if (job.transcriptFilename && job.transcriptFilename !== job.filename) {
-              setTimeout(() => triggerBrowserSave(job.transcriptFilename!), 400);
-            }
-            setToast(`Saved: ${job.filename} (other downloads keep running)`);
+          if (job.status === "completed" && job.filename) {
+            setToast(`Saved to this browser: ${job.filename}`);
             setTimeout(() => setToast(""), 3500);
           }
         }
@@ -89,8 +54,7 @@ export default function DownloadsPage() {
         <div>
           <h2 className="display text-2xl font-bold">Download manager</h2>
           <p className="text-sm text-stone-500">
-            {activeCount} active · finished files auto-save to{" "}
-            <code className="text-xs">downloads/completed</code>
+            {activeCount} active · only <strong>your</strong> jobs · files save to this browser
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -101,7 +65,7 @@ export default function DownloadsPage() {
               onChange={(e) => {
                 const v = e.target.checked;
                 setAutoBrowserSave(v);
-                api.patchSettings({ autoBrowserSave: v }).catch(() => undefined);
+                persistAutoBrowserSave(v);
               }}
             />
             Auto-save to browser when complete
@@ -119,7 +83,7 @@ export default function DownloadsPage() {
       )}
 
       {!downloads.length ? (
-        <div className="panel p-6 text-sm text-stone-600">No downloads yet.</div>
+        <div className="panel p-6 text-sm text-stone-600">No downloads yet in this browser session.</div>
       ) : (
         <ul className="space-y-3">
           {downloads.map((job) => (
@@ -129,7 +93,6 @@ export default function DownloadsPage() {
                   <p className="truncate font-semibold">{job.title}</p>
                   <p className="text-xs text-stone-500">
                     {job.quality} · {job.format.toUpperCase()} · {job.status}
-                    {job.autoSaved ? " · auto-saved" : ""}
                     {job.speed ? ` · ${job.speed}` : ""}
                     {job.eta ? ` · ETA ${job.eta}` : ""}
                   </p>
@@ -143,8 +106,8 @@ export default function DownloadsPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {job.status === "completed" && job.filename ? (
-                    <a className="btn-primary" href={api.fileUrl(job.filename)} download={job.filename}>
-                      Open / save
+                    <a className="btn-primary" href={api.fileUrl(job.filename, false)} download={job.filename}>
+                      Save again
                     </a>
                   ) : null}
                   {["failed", "cancelled"].includes(job.status) ? (

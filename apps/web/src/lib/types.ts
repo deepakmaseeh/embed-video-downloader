@@ -75,6 +75,7 @@ export interface DownloadJob {
   updatedAt: string;
   transcriptFilename?: string;
   autoSaved?: boolean;
+  clientId?: string;
 }
 
 export interface AppSettings {

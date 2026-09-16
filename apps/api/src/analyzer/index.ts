@@ -49,7 +49,6 @@ export async function runAnalyze(pageUrlInput: string): Promise<AnalyzeResult> {
     updatedAt: now,
   };
   store.setAnalyze(job);
-  store.pushRecent(safeUrl);
 
   void (async () => {
     const update = (patch: Partial<AnalyzeResult>) => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../lib/api";
+import { getClientId, getRecentUrls, pushRecentUrl } from "../lib/localStore";
 
 export default function HomePage() {
   const router = useRouter();
@@ -13,7 +14,8 @@ export default function HomePage() {
   const [recent, setRecent] = useState<string[]>([]);
 
   useEffect(() => {
-    api.recent().then((r) => setRecent(r.recent || [])).catch(() => undefined);
+    getClientId();
+    setRecent(getRecentUrls());
   }, []);
 
   async function analyze(target?: string) {
@@ -26,11 +28,11 @@ export default function HomePage() {
     setLoading(true);
     setStage("Starting analysis…");
     try {
+      setRecent(pushRecentUrl(value));
       const job = await api.analyze(value);
       localStorage.setItem("lastAnalyzeId", job.id);
       localStorage.setItem("lastAnalyzeUrl", value);
 
-      // Poll until complete
       for (;;) {
         const cur = await api.getAnalyze(job.id);
         setStage(cur.stage || cur.status);
@@ -55,7 +57,8 @@ export default function HomePage() {
     <main className="space-y-6">
       <section className="panel p-5 sm:p-7">
         <p className="mb-2 text-sm text-stone-600">
-          Paste a webpage URL to detect embedded videos, preview them, then download.
+          Paste a webpage URL to detect embedded videos, preview them, then download to{" "}
+          <strong>this browser</strong>. Recent URLs and history stay on your device only.
         </p>
         <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-stone-500">
           Webpage URL
@@ -93,13 +96,12 @@ export default function HomePage() {
             <p className="mt-1 opacity-80">{stage}</p>
           </div>
         )}
-        {error && (
-          <p className="mt-3 text-sm font-medium text-red-700">{error}</p>
-        )}
+        {error && <p className="mt-3 text-sm font-medium text-red-700">{error}</p>}
       </section>
 
       <section className="panel p-5">
         <h2 className="display mb-3 text-xl font-bold">Recent URLs</h2>
+        <p className="mb-3 text-xs text-stone-500">Saved in this browser only — not shared with other visitors.</p>
         {recent.length === 0 ? (
           <p className="text-sm text-stone-500">No recent analyses yet.</p>
         ) : (
@@ -126,7 +128,7 @@ export default function HomePage() {
         {[
           ["Detect embeds", "HTML + Playwright network sniff for iframes, HLS, DASH."],
           ["Preview first", "Confirm the right video before any download starts."],
-          ["Queue downloads", "Progress, retry, cancel, batch, FFmpeg merge via yt-dlp."],
+          ["Your browser only", "Files save locally; history/recent stay in localStorage."],
         ].map(([title, body]) => (
           <div key={title} className="panel p-4">
             <h3 className="font-semibold">{title}</h3>

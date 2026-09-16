@@ -26,8 +26,6 @@ function writeJson(file: string, data: unknown) {
 
 const analyzes = new Map<string, AnalyzeResult>();
 const downloads = new Map<string, DownloadJob>();
-let recentUrls: string[] = readJson<string[]>(path.join(DATA_DIR, "recent.json"), []);
-let history: HistoryEntry[] = readJson<HistoryEntry[]>(path.join(DATA_DIR, "history.json"), []);
 let settings: AppSettings = readJson<AppSettings>(path.join(DATA_DIR, "settings.json"), {
   defaultQuality: "Best Available",
   defaultFormat: "mp4",
@@ -55,8 +53,20 @@ export const store = {
   listDownloads() {
     return [...downloads.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
+  listDownloadsForClient(clientId: string) {
+    if (!clientId) return [];
+    return this.listDownloads().filter((d) => d.clientId === clientId);
+  },
   getDownload(id: string) {
     return downloads.get(id);
+  },
+  findDownloadByFilename(filename: string, clientId?: string) {
+    const safe = filename;
+    return this.listDownloads().find(
+      (d) =>
+        (d.filename === safe || d.transcriptFilename === safe) &&
+        (!clientId || d.clientId === clientId)
+    );
   },
   setDownload(job: DownloadJob) {
     downloads.set(job.id, job);
@@ -65,24 +75,22 @@ export const store = {
     downloads.delete(id);
   },
 
+  // Kept for backward compatibility; UI no longer uses shared recent/history
   getRecent() {
-    return recentUrls;
+    return [] as string[];
   },
-  pushRecent(url: string) {
-    recentUrls = [url, ...recentUrls.filter((u) => u !== url)].slice(0, 20);
-    writeJson(path.join(DATA_DIR, "recent.json"), recentUrls);
+  pushRecent(_url: string) {
+    /* no-op: recent is browser localStorage only */
   },
 
   getHistory() {
-    return history;
+    return [] as HistoryEntry[];
   },
-  pushHistory(entry: HistoryEntry) {
-    history = [entry, ...history].slice(0, 200);
-    writeJson(path.join(DATA_DIR, "history.json"), history);
+  pushHistory(_entry: HistoryEntry) {
+    /* no-op: history is browser localStorage only */
   },
-  deleteHistory(id: string) {
-    history = history.filter((h) => h.id !== id);
-    writeJson(path.join(DATA_DIR, "history.json"), history);
+  deleteHistory(_id: string) {
+    /* no-op */
   },
 
   getSettings() {
