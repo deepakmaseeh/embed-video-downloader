@@ -1,51 +1,41 @@
-# Deploy: Vercel (UI) + Render (API)
+# Live deploy status
 
-Yes — push this repo to GitHub, host **API on Render**, **UI on Vercel**, then connect with one env var.
+## GitHub
+https://github.com/deepakmaseeh/embed-video-downloader
 
-## 1. GitHub
+## Render (live)
 
-This folder is its own git repo (not the parent RMA project).
+| Role | URL |
+|------|-----|
+| **API (backend)** | https://embed-downloader-api.onrender.com |
+| **UI (frontend)** | https://embed-downloader-web.onrender.com |
 
-```powershell
-cd downloder-video
-git remote -v
-```
+Health: https://embed-downloader-api.onrender.com/health
 
-## 2. Render (backend)
+Free Render services sleep after idle (~15 min). First request can take 30–60s.
 
-1. [Render](https://render.com) → **New** → **Blueprint** (uses `render.yaml`)  
-   or **Web Service** → connect this GitHub repo  
-   - **Root / Docker context:** `apps/api`  
-   - **Dockerfile:** `apps/api/Dockerfile`
-2. After deploy, copy the service URL, e.g. `https://embed-downloader-api.onrender.com`
-3. Set env var:
-   - `FRONTEND_ORIGIN` = your Vercel URL (e.g. `https://your-app.vercel.app`)
-4. Optional: attach a **persistent disk** on `/app/downloads` so files survive restarts (paid plans). Free tier disk is ephemeral.
+## Vercel (UI alternative)
 
-Health check: `GET /health`
+Vercel CLI login needs an interactive browser verification code on this machine, so the UI was also deployed on Render above.
 
-## 3. Vercel (frontend)
+To host the UI on Vercel instead/as well:
 
-1. [Vercel](https://vercel.com) → **Add New Project** → import this GitHub repo  
-2. **Root Directory:** `apps/web`  
-3. Framework: Next.js  
-4. Environment variable:
-   - `NEXT_PUBLIC_API_URL` = your Render URL (**no trailing slash**)  
-     Example: `https://embed-downloader-api.onrender.com`
+1. Open: https://vercel.com/new
+2. Import `deepakmaseeh/embed-video-downloader`
+3. **Root Directory:** `apps/web`
+4. Env var: `NEXT_PUBLIC_API_URL` = `https://embed-downloader-api.onrender.com`
 5. Deploy
 
-## 4. Connect checklist
+Or from a terminal (after `vercel login`):
 
-| Where | Variable | Value |
+```powershell
+cd apps/web
+npx vercel --prod -e NEXT_PUBLIC_API_URL=https://embed-downloader-api.onrender.com
+```
+
+## Connect checklist
+
+| Place | Variable | Value |
 |-------|----------|--------|
-| Vercel | `NEXT_PUBLIC_API_URL` | `https://….onrender.com` |
-| Render | `FRONTEND_ORIGIN` | `https://….vercel.app` |
-
-Then open the Vercel URL → Analyze → Download. Browser Save As and files live on the Render disk.
-
-## Notes
-
-- Render **free** services sleep after idle; first request can take ~30–60s.
-- Large batch downloads need enough disk + a plan that allows long-running jobs.
-- Do **not** commit `apps/api/downloads` (ignored; can be huge).
-- Local Windows still works with `py -3.12 -m yt_dlp`; Docker/Render uses `python3 -m yt_dlp`.
+| UI (Render or Vercel) | `NEXT_PUBLIC_API_URL` | `https://embed-downloader-api.onrender.com` |
+| API (Render) | `FRONTEND_ORIGIN` | `*` (already set) or your exact UI origin |
