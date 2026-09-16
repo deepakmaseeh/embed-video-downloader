@@ -22,6 +22,33 @@ apps/api/data/**
 _ref_Video-Downloader/
 _ref_*/
 
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+dist/
+**/dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Local download cache (can be tens of GB)
+apps/api/downloads/**
+!apps/api/downloads/.gitkeep
+!apps/api/downloads/completed/.gitkeep
+apps/api/data/
+apps/api/data/**
+
+# Temporary reference clone — do not ship
+_ref_Video-Downloader/
+_ref_*/
+
 # Partials / temp
 *.part
 *.ytdl
+
+# Local tooling / caches (never commit)
+.npm-cache/
+.tools/
