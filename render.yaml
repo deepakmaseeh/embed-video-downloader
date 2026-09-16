@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: embed-downloader-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8788"
+      # Set after Vercel deploy, e.g. https://your-app.vercel.app
+      - key: FRONTEND_ORIGIN
+        sync: false

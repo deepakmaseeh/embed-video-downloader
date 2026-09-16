@@ -1,0 +1,19 @@
+services:
+  api:
+    build: ./apps/api
+    ports:
+      - "8788:8788"
+    volumes:
+      - ./apps/api/downloads:/app/downloads
+      - ./apps/api/data:/app/data
+    environment:
+      - PORT=8788
+
+  web:
+    build: ./apps/web
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8788
+    depends_on:
+      - api

@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #12201c;
+  --muted: #5b6b64;
+  --panel: rgba(255, 252, 247, 0.92);
+  --line: rgba(18, 32, 28, 0.12);
+  --accent: #0f766e;
+  --accent-2: #c2410c;
+  --bg1: #f4f0e6;
+  --bg2: #e7f3ef;
+}
+
+html, body {
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(900px 480px at 0% -10%, #d7efe7 0%, transparent 55%),
+    radial-gradient(700px 420px at 100% 0%, #f3d8c8 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg1), #ebe4d7);
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+h1, h2, .display {
+  font-family: "Fraunces", Georgia, serif;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1.1rem;
+  box-shadow: 0 18px 40px rgba(18, 32, 28, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition;
+}
+
+.btn-primary {
+  @apply btn bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply btn bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-50;
+}
+
+.btn-ghost {
+  @apply btn border border-black/10 bg-white/70 text-stone-800 hover:bg-white;
+}
+
+.input {
+  @apply w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-base outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20;
+}
+
+.chip {
+  @apply rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm;
+}
+
+.chip-active {
+  @apply border-teal-700 bg-teal-50 text-teal-800 font-semibold;
+}
