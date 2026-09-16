@@ -9,11 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --ignore-scripts || npm install --omit=dev --ignore-scripts
+# Install all deps (incl. typescript) for build, then prune
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
 
 COPY tsconfig.json ./
 COPY src ./src
-RUN npx tsc -p tsconfig.json
+RUN npx tsc -p tsconfig.json \
+  && npm prune --omit=dev
 
 RUN mkdir -p downloads/completed data
 

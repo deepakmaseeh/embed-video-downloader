@@ -5,12 +5,13 @@ services:
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
     plan: free
+    region: oregon
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "8788"
-      # Set after Vercel deploy, e.g. https://your-app.vercel.app
+      # Allow any Vercel preview/prod origin; tighten later if needed
       - key: FRONTEND_ORIGIN
-        sync: false
+        value: "*"
