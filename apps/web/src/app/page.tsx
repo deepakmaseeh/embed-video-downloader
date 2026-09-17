@@ -42,7 +42,28 @@ export default function HomePage() {
           return;
         }
         if (cur.status === "failed") {
-          throw new Error(cur.error || "Analysis failed");
+          const msg = cur.error || "Analysis failed";
+          const isCf = /cloudflare/i.test(msg);
+          if (isCf && value.includes("biblicaltraining.org")) {
+            // One automatic retry — CF challenges are often intermittent on cloud hosts
+            setStage("Cloudflare blocked once — retrying automatically…");
+            await new Promise((r) => setTimeout(r, 2500));
+            const retry = await api.analyze(value);
+            for (;;) {
+              const again = await api.getAnalyze(retry.id);
+              setStage(again.stage || again.status);
+              if (again.status === "completed") {
+                localStorage.setItem("lastAnalyzeResult", JSON.stringify(again));
+                router.push(`/results?id=${again.id}`);
+                return;
+              }
+              if (again.status === "failed") {
+                throw new Error(again.error || msg);
+              }
+              await new Promise((r) => setTimeout(r, 900));
+            }
+          }
+          throw new Error(msg);
         }
         await new Promise((r) => setTimeout(r, 900));
       }

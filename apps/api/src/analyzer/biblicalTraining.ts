@@ -8,6 +8,7 @@ import { promisify } from "util";
 import { nanoid } from "nanoid";
 import type { MediaItem, MediaVariant } from "../types";
 import { curlBinary } from "./ytDlpCmd";
+import { cfFetchText, withRetries } from "./cfFetch";
 
 const execFileAsync = promisify(execFile);
 
@@ -22,6 +23,12 @@ export function isBiblicalTrainingUrl(url: string): boolean {
   }
 }
 
+function looksLikeCloudflareChallenge(text: string): boolean {
+  if (/id=["']__NEXT_DATA__["']/i.test(text)) return false;
+  if (/"data"\s*:\s*\[/.test(text) || /"data"\s*:\s*\{/.test(text)) return false;
+  return /cf-browser-verification|challenge-platform|cdn-cgi\/challenge|just a moment/i.test(text);
+}
+
 async function fetchHtmlCurl(url: string): Promise<string> {
   // curl often passes Cloudflare where Node fetch gets 403
   const { stdout } = await execFileAsync(
@@ -34,7 +41,7 @@ async function fetchHtmlCurl(url: string): Promise<string> {
   }
   // Real BT pages include __NEXT_DATA__. Challenge interstitials do not.
   if (!/id=["']__NEXT_DATA__["']/i.test(stdout)) {
-    if (/cf-browser-verification|challenge-platform|cdn-cgi\/challenge|just a moment/i.test(stdout)) {
+    if (looksLikeCloudflareChallenge(stdout)) {
       throw new Error("Cloudflare challenge page returned — try again shortly");
     }
     throw new Error("BiblicalTraining page did not include course data (__NEXT_DATA__ missing)");
@@ -53,10 +60,25 @@ async function fetchHtmlNode(url: string): Promise<string> {
     signal: AbortSignal.timeout(30000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching BiblicalTraining page`);
-  return res.text();
+  const text = await res.text();
+  if (looksLikeCloudflareChallenge(text)) {
+    throw new Error("Cloudflare challenge page returned — try again shortly");
+  }
+  return text;
 }
 
 export async function fetchBiblicalTrainingHtml(url: string): Promise<string> {
+  // 1) Chrome TLS impersonation (best on Render/datacenter IPs)
+  try {
+    const body = await cfFetchText(url, "text/html,application/xhtml+xml");
+    if (/id=["']__NEXT_DATA__["']/i.test(body)) return body;
+    if (looksLikeCloudflareChallenge(body)) {
+      throw new Error("Cloudflare challenge page returned — try again shortly");
+    }
+  } catch {
+    /* fall through */
+  }
+
   try {
     return await fetchHtmlCurl(url);
   } catch (err) {
@@ -358,6 +380,21 @@ function qualityVariants(vimeoId: string): MediaVariant[] {
 }
 
 async function fetchJsonApi<T = unknown>(url: string): Promise<T> {
+  const tryParse = (text: string): T => {
+    if (looksLikeCloudflareChallenge(text)) {
+      throw new Error("BiblicalTraining API returned Cloudflare challenge");
+    }
+    return JSON.parse(text) as T;
+  };
+
+  // Prefer Chrome TLS impersonation on cloud hosts
+  try {
+    const body = await cfFetchText(url, "application/vnd.api+json");
+    return tryParse(body);
+  } catch {
+    /* fall through to Node fetch */
+  }
+
   const res = await fetch(url, {
     headers: {
       "User-Agent": UA,
@@ -370,10 +407,7 @@ async function fetchJsonApi<T = unknown>(url: string): Promise<T> {
     throw new Error(`BiblicalTraining API HTTP ${res.status}`);
   }
   const text = await res.text();
-  if (/just a moment|challenge-platform|cf-browser-verification/i.test(text)) {
-    throw new Error("BiblicalTraining API returned Cloudflare challenge");
-  }
-  return JSON.parse(text) as T;
+  return tryParse(text);
 }
 
 /** Turn URL path slug into a title search phrase, e.g. th250-a-guide-to-… → Guide to Spiritual Formation */
@@ -520,7 +554,10 @@ export async function analyzeBiblicalTraining(
   // Prefer JSON:API (works from cloud hosts where Cloudflare blocks the HTML page)
   try {
     onStage?.("BiblicalTraining: finding course via JSON:API");
-    const found = await discoverCourseViaApi(pageUrl);
+    const found = await withRetries("BiblicalTraining API discovery", 4, async (attempt) => {
+      onStage?.(`BiblicalTraining: API discovery attempt ${attempt}/4`);
+      return discoverCourseViaApi(pageUrl);
+    });
     courseTitle = found.courseTitle;
     instructor = found.instructor;
     lessons = found.lessons;
@@ -530,14 +567,21 @@ export async function analyzeBiblicalTraining(
       `BiblicalTraining: API lookup failed (${err instanceof Error ? err.message : String(err)}); trying page scrape`
     );
     try {
-      const found = await discoverCourseFromPageHtml(pageUrl);
+      const found = await withRetries("BiblicalTraining page scrape", 3, async (attempt) => {
+        onStage?.(`BiblicalTraining: page scrape attempt ${attempt}/3`);
+        return discoverCourseFromPageHtml(pageUrl);
+      });
       courseTitle = found.courseTitle;
       instructor = found.instructor;
       lessons = found.lessons;
     } catch (pageErr) {
       const a = discoveryError instanceof Error ? discoveryError.message : String(discoveryError);
       const b = pageErr instanceof Error ? pageErr.message : String(pageErr);
-      throw new Error(`BiblicalTraining discovery failed. API: ${a}. Page: ${b}`);
+      throw new Error(
+        `BiblicalTraining is behind Cloudflare and blocked this cloud server. ` +
+          `API: ${a}. Page: ${b}. ` +
+          `Wait ~1 minute and retry, or run the API locally (Windows curl often works).`
+      );
     }
   }
 
