@@ -19,10 +19,8 @@ export default function HistoryPage() {
     <main className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="display text-2xl font-bold">History</h2>
-          <p className="text-sm text-stone-500">
-            Stored in this browser only (localStorage). Other visitors cannot see it.
-          </p>
+          <h2 className="display text-2xl font-extrabold text-white">History</h2>
+          <p className="text-sm text-teal-100/50">Stored in this browser only — other visitors cannot see it.</p>
         </div>
         {history.length > 0 && (
           <button
@@ -38,7 +36,7 @@ export default function HistoryPage() {
         )}
       </div>
       {!history.length ? (
-        <div className="panel p-6 text-sm text-stone-600">No completed downloads yet in this browser.</div>
+        <div className="panel p-6 text-sm text-teal-100/55">No completed downloads yet in this browser.</div>
       ) : (
         <ul className="space-y-2">
           {history.map((h) => (
@@ -47,10 +45,9 @@ export default function HistoryPage() {
               className="panel flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
-                <p className="truncate font-semibold">{h.title}</p>
-                <p className="text-xs text-stone-500">
-                  {h.quality} · {h.format} · {h.filename} ·{" "}
-                  {new Date(h.createdAt).toLocaleString()}
+                <p className="truncate font-semibold text-white">{h.title}</p>
+                <p className="text-xs text-teal-100/45">
+                  {h.quality} · {h.format} · {h.filename} · {new Date(h.createdAt).toLocaleString()}
                 </p>
               </div>
               <button

@@ -28,10 +28,10 @@ export default function SettingsPage() {
 
   return (
     <main className="space-y-4">
-      <h2 className="display text-2xl font-bold">Settings</h2>
+      <h2 className="display text-2xl font-extrabold text-white">Settings</h2>
       <section className="panel space-y-4 p-5">
         <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-stone-500">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-teal-200/45">
             Default quality
           </span>
           <input
@@ -41,7 +41,7 @@ export default function SettingsPage() {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-stone-500">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-teal-200/45">
             Default format
           </span>
           <select
@@ -57,7 +57,7 @@ export default function SettingsPage() {
           </select>
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-stone-500">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-teal-200/45">
             Filename template
           </span>
           <input
@@ -65,41 +65,41 @@ export default function SettingsPage() {
             value={settings.filenameTemplate}
             onChange={(e) => setSettings({ ...settings, filenameTemplate: e.target.value })}
           />
-          <span className="mt-1 block text-xs text-stone-500">
+          <span className="mt-1 block text-xs text-teal-100/40">
             Tokens: {"{index} {title} {quality} {format} {date} {source}"}
           </span>
         </label>
 
-        <label className="flex items-center gap-3 rounded-xl border border-black/10 bg-stone-50 px-3 py-3">
+        <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
           <input
             type="checkbox"
             checked={settings.autoSaveCompleted !== false}
             onChange={(e) => setSettings({ ...settings, autoSaveCompleted: e.target.checked })}
           />
           <span>
-            <span className="block text-sm font-semibold">Keep auto-save on complete</span>
-            <span className="block text-xs text-stone-500">
+            <span className="block text-sm font-semibold text-white">Keep auto-save on complete</span>
+            <span className="block text-xs text-teal-100/45">
               Copy finished files to downloads/completed/ without stopping other downloads
             </span>
           </span>
         </label>
 
-        <label className="flex items-center gap-3 rounded-xl border border-black/10 bg-stone-50 px-3 py-3">
+        <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
           <input
             type="checkbox"
             checked={settings.autoBrowserSave !== false}
             onChange={(e) => setSettings({ ...settings, autoBrowserSave: e.target.checked })}
           />
           <span>
-            <span className="block text-sm font-semibold">Browser save when complete</span>
-            <span className="block text-xs text-stone-500">
-              Preference also lives in this browser; finished files download locally, not a shared gallery
+            <span className="block text-sm font-semibold text-white">Browser save when complete</span>
+            <span className="block text-xs text-teal-100/45">
+              Finished files download to this device; history stays in localStorage
             </span>
           </span>
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-stone-500">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-teal-200/45">
             Max concurrent downloads
           </span>
           <input
@@ -128,19 +128,19 @@ export default function SettingsPage() {
         >
           Save settings
         </button>
-        {saved && <p className="text-sm text-teal-800">{saved}</p>}
+        {saved && <p className="text-sm text-teal-300">{saved}</p>}
       </section>
 
       {storage && (
         <section className="panel p-5">
-          <h3 className="font-semibold">Server temp storage</h3>
-          <p className="mt-2 text-sm text-stone-600">
-            {storage.fileCount} temp files · {(storage.usedBytes / (1024 * 1024)).toFixed(1)} MB
-            (processed on the server, then sent to each visitor&apos;s browser)
+          <h3 className="font-semibold text-white">Server temp storage</h3>
+          <p className="mt-2 text-sm text-teal-100/55">
+            {storage.fileCount} temp files · {(storage.usedBytes / (1024 * 1024)).toFixed(1)} MB (processed on the
+            server, then sent to each visitor&apos;s browser)
           </p>
-          <p className="mt-2 text-xs text-stone-500">
-            Recent URLs and download history are <strong>not</strong> shared — they stay in each
-            browser&apos;s localStorage.
+          <p className="mt-2 text-xs text-teal-100/40">
+            Recent URLs and download history are <strong className="text-teal-100">not</strong> shared — they stay in
+            each browser&apos;s localStorage.
           </p>
         </section>
       )}

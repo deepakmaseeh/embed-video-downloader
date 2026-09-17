@@ -52,13 +52,13 @@ export default function DownloadsPage() {
     <main className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="display text-2xl font-bold">Download manager</h2>
-          <p className="text-sm text-stone-500">
-            {activeCount} active · only <strong>your</strong> jobs · files save to this browser
+          <h2 className="display text-2xl font-extrabold text-white">Download queue</h2>
+          <p className="text-sm text-teal-100/50">
+            {activeCount} active · only your jobs · files save to this browser
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm">
+          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-teal-50">
             <input
               type="checkbox"
               checked={autoBrowserSave}
@@ -68,7 +68,7 @@ export default function DownloadsPage() {
                 persistAutoBrowserSave(v);
               }}
             />
-            Auto-save to browser when complete
+            Auto-save when complete
           </label>
           <button type="button" className="btn-ghost" onClick={() => refresh()}>
             Refresh
@@ -76,33 +76,29 @@ export default function DownloadsPage() {
         </div>
       </div>
 
-      {toast && (
-        <div className="rounded-xl border border-teal-700/20 bg-teal-50 px-4 py-2 text-sm text-teal-900">
-          {toast}
-        </div>
-      )}
+      {toast && <div className="toast text-sm text-teal-100">{toast}</div>}
 
       {!downloads.length ? (
-        <div className="panel p-6 text-sm text-stone-600">No downloads yet in this browser session.</div>
+        <div className="panel p-6 text-sm text-teal-100/55">No downloads yet in this browser session.</div>
       ) : (
         <ul className="space-y-3">
           {downloads.map((job) => (
             <li key={job.id} className="panel p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{job.title}</p>
-                  <p className="text-xs text-stone-500">
+                  <p className="truncate font-semibold text-white">{job.title}</p>
+                  <p className="text-xs text-teal-100/45">
                     {job.quality} · {job.format.toUpperCase()} · {job.status}
                     {job.speed ? ` · ${job.speed}` : ""}
                     {job.eta ? ` · ETA ${job.eta}` : ""}
                   </p>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/5">
+                  <div className="progress-track mt-2">
                     <div
-                      className="h-full rounded-full bg-teal-700 transition-all"
+                      className="progress-fill"
                       style={{ width: `${Math.max(0, Math.min(100, job.progress))}%` }}
                     />
                   </div>
-                  {job.error && <p className="mt-2 text-xs text-red-700">{job.error}</p>}
+                  {job.error && <p className="mt-2 text-xs text-rose-300">{job.error}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {job.status === "completed" && job.filename ? (
