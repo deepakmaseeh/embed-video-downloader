@@ -357,15 +357,189 @@ function qualityVariants(vimeoId: string): MediaVariant[] {
   ].map((v) => ({ ...v, ext: "mp4" }));
 }
 
+async function fetchJsonApi<T = unknown>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/vnd.api+json",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    signal: AbortSignal.timeout(45000),
+  });
+  if (!res.ok) {
+    throw new Error(`BiblicalTraining API HTTP ${res.status}`);
+  }
+  const text = await res.text();
+  if (/just a moment|challenge-platform|cf-browser-verification/i.test(text)) {
+    throw new Error("BiblicalTraining API returned Cloudflare challenge");
+  }
+  return JSON.parse(text) as T;
+}
+
+/** Turn URL path slug into a title search phrase, e.g. th250-a-guide-to-… → Guide to Spiritual Formation */
+function searchPhraseFromUrl(pageUrl: string): string {
+  const path = new URL(pageUrl).pathname.replace(/\/+$/, "");
+  const slug = path.split("/").filter(Boolean).pop() || "";
+  const withoutCode = slug.replace(/^[a-z]{1,6}\d{0,4}-/i, "");
+  const words = withoutCode
+    .split("-")
+    .map((w) => w.trim())
+    .filter(Boolean)
+    .map((w) => (w.length <= 2 ? w : w[0].toUpperCase() + w.slice(1)));
+  // Drop leading "A"/"An"/"The" for broader CONTAINS match, keep if that's all we have
+  const meaningful = words.filter((w, i) => !(i === 0 && /^(a|an|the)$/i.test(w)));
+  const phrase = (meaningful.length ? meaningful : words).join(" ");
+  return phrase || slug.replace(/-/g, " ");
+}
+
+async function discoverCourseViaApi(pageUrl: string): Promise<{
+  courseTitle: string;
+  instructor: string;
+  lessons: LessonRef[];
+}> {
+  const phrase = searchPhraseFromUrl(pageUrl);
+  const q = new URLSearchParams({
+    "filter[title][operator]": "CONTAINS",
+    "filter[title][value]": phrase,
+    "page[limit]": "25",
+  });
+  const listUrl = `https://back.biblicaltraining.org/jsonapi/node/class?${q.toString()}`;
+  const list = await fetchJsonApi<{
+    data?: Array<{ id: string; attributes?: { title?: string } }>;
+  }>(listUrl);
+
+  const rows = list.data || [];
+  if (!rows.length) {
+    throw new Error(`No BiblicalTraining course matched "${phrase}" via API`);
+  }
+
+  // Prefer exact / closest title match
+  const needle = phrase.toLowerCase();
+  const slugHuman = searchPhraseFromUrl(pageUrl).toLowerCase();
+  const scored = rows
+    .map((row) => {
+      const title = String(row.attributes?.title || "").trim();
+      const t = title.toLowerCase();
+      let score = 0;
+      if (t === needle || t === `a ${needle}` || t === `an ${needle}` || t === `the ${needle}`) score += 100;
+      if (t.includes(needle)) score += 40;
+      if (needle.includes(t)) score += 20;
+      // bonus if most slug words appear in title
+      const words = slugHuman.split(/\s+/).filter((w) => w.length > 2);
+      score += words.filter((w) => t.includes(w)).length * 5;
+      return { id: row.id, title, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  if (!best || best.score < 20) {
+    throw new Error(`Ambiguous BiblicalTraining course search for "${phrase}"`);
+  }
+
+  const detailUrl = `https://back.biblicaltraining.org/jsonapi/node/class/${best.id}?include=field_lessons,field_professors`;
+  const detail = await fetchJsonApi<{
+    data?: {
+      attributes?: { title?: string };
+      relationships?: { field_lessons?: { data?: Array<{ id: string }> } };
+    };
+    included?: Array<{
+      type?: string;
+      id?: string;
+      attributes?: Record<string, unknown>;
+    }>;
+  }>(detailUrl);
+
+  const courseTitle = String(detail.data?.attributes?.title || best.title).trim();
+  const included = detail.included || [];
+  const professors = included.filter((x) => String(x.type || "").includes("professor"));
+  const instructor = String(professors[0]?.attributes?.title || "BiblicalTraining").trim();
+
+  const lessonById = new Map(
+    included
+      .filter((x) => x.type === "node--lesson" && x.id)
+      .map((x) => [String(x.id), x] as const)
+  );
+  const order = detail.data?.relationships?.field_lessons?.data || [];
+  const lessons: LessonRef[] = [];
+
+  for (let idx = 0; idx < order.length; idx++) {
+    const id = order[idx].id;
+    const node = lessonById.get(id);
+    const attrs = node?.attributes || {};
+    lessons.push({
+      id,
+      title: String(attrs.title || `Lesson ${idx + 1}`).trim(),
+      lessonNumber:
+        attrs.field_lesson_number !== undefined && attrs.field_lesson_number !== null
+          ? Number(attrs.field_lesson_number)
+          : idx,
+      slug: attrs.bt_router_slug ? String(attrs.bt_router_slug) : undefined,
+    });
+  }
+
+  // Fallback: unordered included lessons
+  if (!lessons.length) {
+    for (const [id, node] of lessonById) {
+      const attrs = node.attributes || {};
+      lessons.push({
+        id,
+        title: String(attrs.title || "Lesson").trim(),
+        lessonNumber: Number(attrs.field_lesson_number ?? lessons.length),
+        slug: attrs.bt_router_slug ? String(attrs.bt_router_slug) : undefined,
+      });
+    }
+    lessons.sort((a, b) => a.lessonNumber - b.lessonNumber);
+  }
+
+  if (!lessons.length) {
+    throw new Error(`Course "${courseTitle}" has no lessons in JSON:API`);
+  }
+
+  return { courseTitle, instructor, lessons };
+}
+
+async function discoverCourseFromPageHtml(pageUrl: string): Promise<{
+  courseTitle: string;
+  instructor: string;
+  lessons: LessonRef[];
+}> {
+  const html = await fetchBiblicalTrainingHtml(pageUrl);
+  const nextData = parseNextData(html);
+  return collectLessonsFromNextData(nextData);
+}
+
 export async function analyzeBiblicalTraining(
   pageUrl: string,
   onStage?: (stage: string) => void
 ): Promise<MediaItem[]> {
-  onStage?.("BiblicalTraining: fetching page (curl)");
-  const html = await fetchBiblicalTrainingHtml(pageUrl);
-  onStage?.("BiblicalTraining: parsing __NEXT_DATA__");
-  const nextData = parseNextData(html);
-  const { courseTitle, instructor, lessons } = collectLessonsFromNextData(nextData);
+  let courseTitle = "";
+  let instructor = "";
+  let lessons: LessonRef[] = [];
+  let discoveryError: unknown;
+
+  // Prefer JSON:API (works from cloud hosts where Cloudflare blocks the HTML page)
+  try {
+    onStage?.("BiblicalTraining: finding course via JSON:API");
+    const found = await discoverCourseViaApi(pageUrl);
+    courseTitle = found.courseTitle;
+    instructor = found.instructor;
+    lessons = found.lessons;
+  } catch (err) {
+    discoveryError = err;
+    onStage?.(
+      `BiblicalTraining: API lookup failed (${err instanceof Error ? err.message : String(err)}); trying page scrape`
+    );
+    try {
+      const found = await discoverCourseFromPageHtml(pageUrl);
+      courseTitle = found.courseTitle;
+      instructor = found.instructor;
+      lessons = found.lessons;
+    } catch (pageErr) {
+      const a = discoveryError instanceof Error ? discoveryError.message : String(discoveryError);
+      const b = pageErr instanceof Error ? pageErr.message : String(pageErr);
+      throw new Error(`BiblicalTraining discovery failed. API: ${a}. Page: ${b}`);
+    }
+  }
 
   if (!lessons.length) {
     throw new Error("No lessons found on this BiblicalTraining page");
